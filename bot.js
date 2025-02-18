@@ -1,7 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
-
 const express = require('express');
 const app = express();
 
@@ -9,7 +8,7 @@ app.get('/', (req, res) => {
   res.send('Hello World!');
 });
 
-const port = 8000;
+const port = 8080;
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
@@ -24,91 +23,136 @@ const bot = new TelegramBot(botToken, { polling: true });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const username = msg.from.username;
-  const welcomeMessage = `Hello, ${username}!\n\n`
-    + 'Welcome to the URL Shortener Bot!\n'
-    + 'You can use this bot to shorten URLs using the mybios.eu.org service.\n\n'
+  const welcomeMessage = `😇 Hello, ${username}!\n\n`
+    + 'Welcome to the IndiaEarnX URL Shortener Bot!\n'
+    + 'You can use this bot to shorten URLs using the indiaearnx.com api service.\n\n'
     + 'To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL.\n\n'
-    + 'If you haven\'t set your MyBios API token yet, use the command:\n/api YOUR_MYBIOS_API_TOKEN\n\n'
-    + 'Now, go ahead and try it out!';
+    + 'If you haven\'t set your indiaearnx.com API token yet, use the command:\n/setapi YOUR_IndiaEarnX_API_TOKEN\n\n'
+    + 'How To Use Me 👇👇 \n\n'
+  + '✅1. Got To https://indishort.live & Complete Your Registration.\n\n'
+  + '✅2. Then Copy Your API Key from here https://indiaearnx.com/member/tools/api Copy Your API Only. \n\n'
+  + '✅3. Then add your API using command /setapi \n\n' 
+  + 'Example: /setapi c49399f821fc020161bc2a31475ec59f35ae5b4\n\n'
+  + '⚠️ You must have to send link with https:// or http://\n\n'
+  + '**Now, go ahead and try it out!**';
 
   bot.sendMessage(chatId, welcomeMessage);
 });
 
-
-// Command: /api
-bot.onText(/\/api (.+)/, (msg, match) => {
+// Command: /setapi
+bot.onText(/\/setapi (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
-  const userToken = match[1].trim(); // Get the API token provided by the user
+  const userToken = match[1].trim();
 
-  // Save the user's MyBios API token to the database
+  // Save the user's AdlinkFly API token to the database
   saveUserToken(chatId, userToken);
 
-  const response = `MyBios API token set successfully. Your token: ${userToken}`;
+  const response = `Your IndiaEarnX API token set successfully. ✅️✅️ Your token is: ${userToken}`;
   bot.sendMessage(chatId, response);
 });
 
 // Listen for any message (not just commands)
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
-  const messageText = msg.text;
 
-  // If the message starts with "http://" or "https://", assume it's a URL and try to shorten it
-  if (messageText && (messageText.startsWith('http://') || messageText.startsWith('https://'))) {
-    shortenUrlAndSend(chatId, messageText);
+  // Check if message contains text or forwarded content
+  if (msg.text || msg.caption) {
+    const text = msg.text || msg.caption;
+    const links = extractLinks(text);
+
+    if (links.length > 0) {
+      const shortenedLinks = await shortenMultipleLinks(chatId, links);
+
+      // Replace original links in the text
+      const updatedText = replaceLinksInText(text, links, shortenedLinks);
+
+      bot.sendMessage(chatId, updatedText, {
+        reply_to_message_id: msg.message_id,
+      });
+    }
+  }
+
+  // If message has media with caption, handle it
+  if (msg.photo || msg.video || msg.document) {
+    const caption = msg.caption || '';
+    const links = extractLinks(caption);
+
+    if (links.length > 0) {
+      const shortenedLinks = await shortenMultipleLinks(chatId, links);
+
+      // Replace original links in the caption
+      const updatedCaption = replaceLinksInText(caption, links, shortenedLinks);
+
+      bot.sendMessage(chatId, updatedCaption, {
+        reply_to_message_id: msg.message_id,
+      });
+    }
   }
 });
 
-// Function to shorten the URL and send the result
-async function shortenUrlAndSend(chatId, Url) {
-  // Retrieve the user's MyBios API token from the database
-  const arklinksToken = getUserToken(chatId);
+// Function to extract URLs from a given text
+function extractLinks(text) {
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})([^\s]*)/g;
+  const links = [...text.matchAll(urlRegex)].map(match => match[0]);
+  return links;
+}
 
-  if (!arklinksToken) {
-    bot.sendMessage(chatId, 'Please provide your MyBios API token first. Use the command: /api YOUR_MYBIOS_API_TOKEN');
-    return;
+// Function to replace original links with shortened links in the text
+function replaceLinksInText(text, originalLinks, shortenedLinks) {
+  let updatedText = text;
+  originalLinks.forEach((link, index) => {
+    updatedText = updatedText.replace(link, shortenedLinks[index]);
+  });
+  return updatedText;
+}
+
+// Function to shorten multiple links
+async function shortenMultipleLinks(chatId, links) {
+  const shortenedLinks = [];
+  for (const link of links) {
+    const shortenedLink = await shortenUrl(chatId, link);
+    shortenedLinks.push(shortenedLink || link); // Use original link if shortening fails
+  }
+  return shortenedLinks;
+}
+
+// Function to shorten a single URL
+async function shortenUrl(chatId, url) {
+  const adlinkflyToken = getUserToken(chatId);
+
+  if (!adlinkflyToken) {
+    bot.sendMessage(chatId, 'Please set up 🎃 your IndiaEarnX API token first. 🔮 Use the command: /setapi YOUR_IndiaEarnX_API_TOKEN');
+    return null;
   }
 
   try {
-    const apiUrl = `https://mybios.eu.org/api?api=${arklinksToken}&url=${Url}`;
-
-    // Make a request to the MyBios API to shorten the URL
+    const apiUrl = `https://indiaearnx.com/api?api=${adlinkflyToken}&url=${encodeURIComponent(url)}`;
     const response = await axios.get(apiUrl);
-    const shortUrl = response.data.shortenedUrl;
-
-
-    const responseMessage = `Shortened URL: ${shortUrl}`;
-    bot.sendMessage(chatId, responseMessage);
+    return response.data.shortenedUrl;
   } catch (error) {
     console.error('Shorten URL Error:', error);
-    bot.sendMessage(chatId, 'An error occurred while shortening the URL. Please check your API token and try again.');
+    return null;
   }
 }
 
-// Function to validate the URL format
-function isValidUrl(url) {
-  const urlPattern = /^(|ftp|http|https):\/\/[^ "]+$/;
-  return urlPattern.test(url);
-}
-
-// Function to save user's MyBios API token to the database (Replit JSON database)
+// Function to save user's AdlinkFly API token
 function saveUserToken(chatId, token) {
   const dbData = getDatabaseData();
   dbData[chatId] = token;
-  fs.writeFileSync('database.json', JSON.stringify(dbData, null, 2));
+  fs.writeFileSync('./src/database.json', JSON.stringify(dbData, null, 2));
 }
 
-// Function to retrieve user's MyBios API token from the database
+// Function to retrieve user's AdlinkFly API token
 function getUserToken(chatId) {
   const dbData = getDatabaseData();
   return dbData[chatId];
 }
 
-// Function to read the database file and parse the JSON data
+// Function to read the database file
 function getDatabaseData() {
   try {
-    return JSON.parse(fs.readFileSync('database.json', 'utf8'));
+    return JSON.parse(fs.readFileSync('./src/database.json', 'utf8'));
   } catch (error) {
-    // Return an empty object if the file doesn't exist or couldn't be parsed
     return {};
   }
 }
