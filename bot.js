@@ -21,28 +21,32 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const username = msg.from.username;
 
-  const welcomeMessage = `**Hello, ${username}!**\n\n`
-    + '**Welcome to the IndiaEarnX URL Shortener Bot!**\n'
-    + '**You can use this bot to shorten URLs using the indiaearnx.com api service**\n\n'
-    + '**To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL.**\n\n'
-    + '**If you haven\'t set your IndiaEarnX API token yet, use the command:\n/setapi YOUR_IndiaEarnx_API_TOKEN**\n\n'
-    + '**Example: /setapi c49399f821fc020161bc2a31475ec59f35ae5b4**';
+  const welcomeMessage = `<b>Hello, ${username}!</b>\n\n`
+    + `<b>Welcome to the IndiaEarnX URL Shortener Bot!</b>\n`
+    + `<b>You can use this bot to shorten URLs using the indiaearnx.com API service.</b>\n\n`
+    + `<b>To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL.</b>\n\n`
+    + `<b>If you haven't set your IndiaEarnX API token yet, use the command:</b>\n<code>/setapi YOUR_IndiaEarnx_API_TOKEN</code>\n\n`
+    + `<b>Example:</b>\n<code>/setapi c49399f821fc020161bc2a31475ec59f35ae5b4</code>`;
 
   const options = {
-    reply_markup: {
+    reply_markup: JSON.stringify({
       inline_keyboard: [
         [
-          { text: 'Chat with Admin', url: 't.me/IndiaEarnXsupport' },
-          { text: 'Payment Proof', url: 't.me/IndiaEarnx_Payment_Proofs' }
+          { text: "Chat with Admin", url: "t.me/IndiaEarnXsupport" },
+          { text: "Payment Proof", url: "t.me/IndiaEarnx_Payment_Proofs" }
         ],
         [
-          { text: 'Get API Token from Here', url: 'https://indiaearnx.com/member/tools/quick' }
+          { text: "Get API Token from Here", url: "https://indiaearnx.com/member/tools/quick" }
         ]
       ]
-    }
+    })
   };
 
-  bot.sendPhoto(chatId, 'https://envs.sh/dn1.jpg', { caption: welcomeMessage, reply_markup: options });
+  bot.sendPhoto(chatId, "https://envs.sh/dn1.jpg", {
+    caption: welcomeMessage,
+    parse_mode: "HTML",
+    reply_markup: options.reply_markup
+  });
 });
 
 // Command: /setapi
@@ -55,11 +59,11 @@ bot.onText(/\/setapi (.+)/, (msg, match) => {
 });
 
 // Handle URL shortening
-bot.on('message', (msg) => {
+bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const messageText = msg.text;
 
-  if (messageText && (messageText.startsWith('http://') || messageText.startsWith('https://'))) {
+  if (messageText && (messageText.startsWith("http://") || messageText.startsWith("https://"))) {
     shortenUrlAndSend(chatId, messageText);
   }
 });
@@ -69,7 +73,7 @@ async function shortenUrlAndSend(chatId, Url) {
   const arklinksToken = getUserToken(chatId);
 
   if (!arklinksToken) {
-    bot.sendMessage(chatId, 'Please provide your IndiaEarnX API token first. Use the command: /setapi YOUR_IndiaEarnX_API_TOKEN');
+    bot.sendMessage(chatId, "Please provide your IndiaEarnX API token first. Use the command: /setapi YOUR_IndiaEarnX_API_TOKEN");
     return;
   }
 
@@ -80,8 +84,8 @@ async function shortenUrlAndSend(chatId, Url) {
 
     bot.sendMessage(chatId, `Shortened URL: ${shortUrl}`);
   } catch (error) {
-    console.error('Shorten URL Error:', error);
-    bot.sendMessage(chatId, 'An error occurred while shortening the URL. Please check your API token and try again.');
+    console.error("Shorten URL Error:", error);
+    bot.sendMessage(chatId, "An error occurred while shortening the URL. Please check your API token and try again.");
   }
 }
 
@@ -89,7 +93,7 @@ async function shortenUrlAndSend(chatId, Url) {
 function saveUserToken(chatId, token) {
   const dbData = getDatabaseData();
   dbData[chatId] = token;
-  fs.writeFileSync('database.json', JSON.stringify(dbData, null, 2));
+  fs.writeFileSync("database.json", JSON.stringify(dbData, null, 2));
 }
 
 // Function to retrieve user's API token
@@ -101,7 +105,7 @@ function getUserToken(chatId) {
 // Function to read the database
 function getDatabaseData() {
   try {
-    return JSON.parse(fs.readFileSync('database.json', 'utf8'));
+    return JSON.parse(fs.readFileSync("database.json", "utf8"));
   } catch (error) {
     return {};
   }
