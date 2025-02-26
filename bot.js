@@ -25,25 +25,25 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const username = msg.from.username;
   const welcomeMessage = `Hello, ${username}!\n\n`
-    + 'Welcome to the URL Shortener Bot!\n'
-    + 'You can use this bot to shorten URLs using the mybios.eu.org service.\n\n'
-    + 'To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL.\n\n'
-    + 'If you haven\'t set your MyBios API token yet, use the command:\n/api YOUR_MYBIOS_API_TOKEN\n\n'
-    + 'Now, go ahead and try it out!';
+    + '**Welcome to the IndiaEarnX URL Shortener Bot!**\n'
+    + '**You can use this bot to shorten URLs using the indiaearnx.com api service**\n\n'
+    + '**To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL**.\n\n'
+    + '**If you haven\'t set your IndiaEarnX API token yet, use the command:\n/setapi YOUR_IndiaEarnx_API_TOKEN**\n\n'
+    + '**Example: /setapi c49399f821fc020161bc2a31475ec59f35ae5b4**';
 
   bot.sendMessage(chatId, welcomeMessage);
 });
 
 
 // Command: /api
-bot.onText(/\/api (.+)/, (msg, match) => {
+bot.onText(/\/setapi (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userToken = match[1].trim(); // Get the API token provided by the user
 
   // Save the user's MyBios API token to the database
   saveUserToken(chatId, userToken);
 
-  const response = `MyBios API token set successfully. Your token: ${userToken}`;
+  const response = `IndiaEarnX API token set successfully. Your token: ${userToken}`;
   bot.sendMessage(chatId, response);
 });
 
@@ -69,7 +69,7 @@ async function shortenUrlAndSend(chatId, Url) {
   }
 
   try {
-    const apiUrl = `https://mybios.eu.org/api?api=${arklinksToken}&url=${Url}`;
+    const apiUrl = `https://indiaearnx.com/api?api=${arklinksToken}&url=${Url}`;
 
     // Make a request to the MyBios API to shorten the URL
     const response = await axios.get(apiUrl);
