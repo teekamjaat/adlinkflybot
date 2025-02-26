@@ -16,6 +16,8 @@ app.listen(port, () => {
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(botToken, { polling: true });
 
+const urlRegex = /(https?:\/\/[^\s]+)/g; // Regex to detect URLs
+
 // Handle /start command
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -55,37 +57,62 @@ bot.onText(/\/setapi (.+)/, (msg, match) => {
   const userToken = match[1].trim();
 
   saveUserToken(chatId, userToken);
-  bot.sendMessage(chatId, `IndiaEarnX API token set successfully. Your token: ${userToken}`);
+  bot.sendMessage(chatId, `IndiaEarnX API token set successfully.`);
 });
 
-// Handle URL shortening
-bot.on("message", (msg) => {
+// Handle messages with links, including forwarded messages
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const messageText = msg.text;
+  const messageText = msg.text || msg.caption; // Captures text from regular messages and captions of forwarded posts
 
-  if (messageText && (messageText.startsWith("http://") || messageText.startsWith("https://"))) {
-    shortenUrlAndSend(chatId, messageText);
+  if (!messageText) return;
+
+  const links = messageText.match(urlRegex);
+
+  if (links && links.length > 0) {
+    const userToken = getUserToken(chatId);
+    
+    if (!userToken) {
+      bot.sendMessage(chatId, "Please provide your IndiaEarnX API token first. Use the command: /setapi YOUR_IndiaEarnX_API_TOKEN");
+      return;
+    }
+
+    let updatedMessage = messageText;
+    let shortenedLinks = [];
+
+    for (const link of links) {
+      const shortUrl = await shortenUrl(userToken, link);
+      if (shortUrl) {
+        shortenedLinks.push(shortUrl);
+        updatedMessage = updatedMessage.replace(link, shortUrl);
+      }
+    }
+
+    if (shortenedLinks.length > 0) {
+      // Send a new message with the same formatting as the original
+      if (msg.text) {
+        bot.sendMessage(chatId, `<b>Updated Post:</b>\n\n${updatedMessage}`, { parse_mode: "HTML" });
+      } else if (msg.caption) {
+        bot.sendPhoto(chatId, msg.photo[msg.photo.length - 1].file_id, {
+          caption: updatedMessage,
+          parse_mode: "HTML"
+        });
+      }
+    } else {
+      bot.sendMessage(chatId, "An error occurred while shortening the URLs.");
+    }
   }
 });
 
-// Function to shorten the URL and send the result
-async function shortenUrlAndSend(chatId, Url) {
-  const arklinksToken = getUserToken(chatId);
-
-  if (!arklinksToken) {
-    bot.sendMessage(chatId, "Please provide your IndiaEarnX API token first. Use the command: /setapi YOUR_IndiaEarnX_API_TOKEN");
-    return;
-  }
-
+// Function to shorten a URL
+async function shortenUrl(apiToken, url) {
   try {
-    const apiUrl = `https://indiaearnx.com/api?api=${arklinksToken}&url=${Url}`;
+    const apiUrl = `https://indiaearnx.com/api?api=${apiToken}&url=${url}`;
     const response = await axios.get(apiUrl);
-    const shortUrl = response.data.shortenedUrl;
-
-    bot.sendMessage(chatId, `Shortened URL: ${shortUrl}`);
+    return response.data.shortenedUrl || null;
   } catch (error) {
-    console.error("Shorten URL Error:", error);
-    bot.sendMessage(chatId, "An error occurred while shortening the URL. Please check your API token and try again.");
+    console.error("Error shortening URL:", error);
+    return null;
   }
 }
 
