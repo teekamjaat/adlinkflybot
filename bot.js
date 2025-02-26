@@ -1,7 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
-
 const express = require('express');
 const app = express();
 
@@ -24,27 +23,27 @@ const bot = new TelegramBot(botToken, { polling: true });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const username = msg.from.username;
-  const welcomeMessage = `Hello, ${username}!\n\n`
-    + '**Welcome to the IndiaEarnX URL Shortener Bot!**\n'
-    + '**You can use this bot to shorten URLs using the indiaearnx.com api service**\n\n'
-    + '**To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL**.\n\n'
-    + '**If you haven\'t set your IndiaEarnX API token yet, use the command:\n/setapi YOUR_IndiaEarnx_API_TOKEN**\n\n'
-    + '**Example: /setapi c49399f821fc020161bc2a31475ec59f35ae5b4**';
+  const welcomeMessage = `*Hello, ${username}!*\\n\\n`
+    + `*Welcome to the IndiaEarnX URL Shortener Bot!*\\n`
+    + `*You can use this bot to shorten URLs using the indiaearnx\\.com API service*\\n\\n`
+    + `*To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL\\.*\\n\\n`
+    + `*If you haven't set your IndiaEarnX API token yet, use the command:*\\n`
+    + '`/setapi YOUR_IndiaEarnx_API_TOKEN`\\n\\n'
+    + `*Example:* \`/setapi c49399f821fc020161bc2a31475ec59f35ae5b4\``;
 
-  bot.sendMessage(chatId, welcomeMessage);
+  bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'MarkdownV2' });
 });
 
-
-// Command: /api
+// Command: /setapi
 bot.onText(/\/setapi (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userToken = match[1].trim(); // Get the API token provided by the user
 
-  // Save the user's MyBios API token to the database
+  // Save the user's API token to the database
   saveUserToken(chatId, userToken);
 
-  const response = `IndiaEarnX API token set successfully. Your token: ${userToken}`;
-  bot.sendMessage(chatId, response);
+  const response = `*IndiaEarnX API token set successfully\\.*\\n\\n*Your token:* \`${userToken}\``;
+  bot.sendMessage(chatId, response, { parse_mode: 'MarkdownV2' });
 });
 
 // Listen for any message (not just commands)
@@ -60,27 +59,26 @@ bot.on('message', (msg) => {
 
 // Function to shorten the URL and send the result
 async function shortenUrlAndSend(chatId, Url) {
-  // Retrieve the user's MyBios API token from the database
+  // Retrieve the user's API token from the database
   const arklinksToken = getUserToken(chatId);
 
   if (!arklinksToken) {
-    bot.sendMessage(chatId, 'Please provide your MyBios API token first. Use the command: /api YOUR_MYBIOS_API_TOKEN');
+    bot.sendMessage(chatId, '*Please provide your IndiaEarnX API token first\\.*\\nUse the command: `/setapi YOUR_IndiaEarnX_API_TOKEN`', { parse_mode: 'MarkdownV2' });
     return;
   }
 
   try {
     const apiUrl = `https://indiaearnx.com/api?api=${arklinksToken}&url=${Url}`;
 
-    // Make a request to the MyBios API to shorten the URL
+    // Make a request to the IndiaEarnX API to shorten the URL
     const response = await axios.get(apiUrl);
     const shortUrl = response.data.shortenedUrl;
 
-
-    const responseMessage = `Shortened URL: ${shortUrl}`;
-    bot.sendMessage(chatId, responseMessage);
+    const responseMessage = `✅ *Shortened URL:* [${shortUrl}](${shortUrl})`;
+    bot.sendMessage(chatId, responseMessage, { parse_mode: 'MarkdownV2', disable_web_page_preview: true });
   } catch (error) {
     console.error('Shorten URL Error:', error);
-    bot.sendMessage(chatId, 'An error occurred while shortening the URL. Please check your API token and try again.');
+    bot.sendMessage(chatId, '⚠️ *An error occurred while shortening the URL\\.* Please check your API token and try again\\.', { parse_mode: 'MarkdownV2' });
   }
 }
 
@@ -90,14 +88,14 @@ function isValidUrl(url) {
   return urlPattern.test(url);
 }
 
-// Function to save user's MyBios API token to the database (Replit JSON database)
+// Function to save user's API token to the database (JSON file)
 function saveUserToken(chatId, token) {
   const dbData = getDatabaseData();
   dbData[chatId] = token;
   fs.writeFileSync('database.json', JSON.stringify(dbData, null, 2));
 }
 
-// Function to retrieve user's MyBios API token from the database
+// Function to retrieve user's API token from the database
 function getUserToken(chatId) {
   const dbData = getDatabaseData();
   return dbData[chatId];
