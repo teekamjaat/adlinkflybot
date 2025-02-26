@@ -57,10 +57,25 @@ bot.onText(/\/start/, (msg) => {
     + `<b>If you haven't set your IndiaEarnX API token yet, use the command:</b>\n<code>/setapi YOUR_IndiaEarnx_API_TOKEN</code>\n\n`
     + `<b>Example:</b>\n<code>/setapi c49399f821fc020161bc2a31475ec59f35ae5b4</code>`;
 
+  const options = {
+    reply_markup: JSON.stringify({
+      inline_keyboard: [
+        [
+          { text: "Chat with Admin", url: "t.me/IndiaEarnXsupport" },
+          { text: "Payment Proof", url: "t.me/IndiaEarnx_Payment_Proofs" }
+        ],
+        [
+          { text: "Get API Token from Here", url: "https://indiaearnx.com/member/tools/quick" }
+        ]
+      ]
+    })
+  };
 
-
-  bot.sendMessage(chatId, welcomeMessage);
-
+  bot.sendPhoto(chatId, "https://envs.sh/dn1.jpg", {
+    caption: welcomeMessage,
+    parse_mode: "HTML",
+    reply_markup: options.reply_markup
+  });
 });
 
 
