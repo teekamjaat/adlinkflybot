@@ -4,39 +4,21 @@ const axios = require('axios');
 
 const fs = require('fs');
 
-
-
 const express = require('express');
+
+
 
 const app = express();
 
-
-
-app.get('/', (req, res) => {
-
-  res.send('Hello World!');
-
-});
-
-
+app.get('/', (req, res) => res.send('Hello World!'));
 
 const port = 8000;
 
-app.listen(port, () => {
-
-  console.log(`Server running at http://localhost:${port}`);
-
-});
+app.listen(port, () => console.log(`Server running at http://localhost:${port}`));
 
 
-
-// Retrieve the Telegram bot token from the environment variable
 
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
-
-
-
-// Create the Telegram bot instance
 
 const bot = new TelegramBot(botToken, { polling: true });
 
@@ -46,192 +28,392 @@ const bot = new TelegramBot(botToken, { polling: true });
 
 bot.onText(/\/start/, (msg) => {
 
-  const chatId = msg.chat.id;
+    const chatId = msg.chat.id;
 
-  const username = msg.from.username;
+    const username = msg.from.username;
 
-  const welcomeMessage = `<b>Hello, ${username}!</b>\n\n`
-    + `<b>Welcome to the IndiaEarnX URL Shortener Bot!</b>\n`
-    + `<b>You can use this bot to shorten URLs using the indiaearnx.com API service.</b>\n\n`
-    + `<b>To shorten a URL, just type or paste the URL directly in the chat, and the bot will provide you with the shortened URL.</b>\n\n`
-    + `<b>If you haven't set your IndiaEarnX API token yet, use the command:</b>\n<code>/setapi YOUR_IndiaEarnx_API_TOKEN</code>\n\n`
-    + `<b>Example:</b>\n<code>/setapi c49399f821fc020161bc2a31475ec59f35ae5b4</code>`;
 
-  const options = {
-    reply_markup: JSON.stringify({
-      inline_keyboard: [
-        [
-          { text: "Chat with Admin", url: "t.me/IndiaEarnXsupport" },
-          { text: "Payment Proof", url: "t.me/IndiaEarnx_Payment_Proofs" }
-        ],
-        [
-          { text: "Get API Token from Here", url: "https://indiaearnx.com/member/tools/quick" }
-        ]
-      ]
-    })
-  };
 
-  bot.sendPhoto(chatId, "https://envs.sh/dn1.jpg", {
-    caption: welcomeMessage,
-    parse_mode: "HTML",
-    reply_markup: options.reply_markup
-  });
+    const welcomeMessage = `<b>Hello, ${username}!</b>\n\n`
+
+        + `<b>Welcome to the IndiaEarnX URL Shortener Bot!</b>\n`
+
+        + `<b>Send any URL, and I will shorten it for you.</b>\n\n`
+
+        + `<b>If you haven’t set your API token yet, use:</b>\n<code>/setapi YOUR_API_TOKEN</code>\n\n`;
+
+
+
+    const options = {
+
+        reply_markup: JSON.stringify({
+
+            inline_keyboard: [
+
+                [{ text: "Chat with Admin", url: "t.me/IndiaEarnXsupport" },
+
+                 { text: "Payment Proof", url: "t.me/IndiaEarnx_Payment_Proofs" }],
+
+                [{ text: "Get API Token", url: "https://indiaearnx.com/member/tools/quick" }]
+
+            ]
+
+        })
+
+    };
+
+
+
+    bot.sendPhoto(chatId, "https://envs.sh/dn1.jpg", {
+
+        caption: welcomeMessage,
+
+        parse_mode: "HTML",
+
+        reply_markup: options.reply_markup
+
+    });
+
 });
 
 
 
-
-
-// Command: /api
+// Command: /setapi
 
 bot.onText(/\/setapi (.+)/, (msg, match) => {
 
-  const chatId = msg.chat.id;
+    const chatId = msg.chat.id;
 
-  const userToken = match[1].trim(); // Get the API token provided by the user
-
-
-
-  // Save the user's MyBios API token to the database
-
-  saveUserToken(chatId, userToken);
+    const userToken = match[1].trim();
 
 
 
-  const response = `IndiaEarnX API token set successfully. Your token: ${userToken}`;
+    // Save API token
 
-  bot.sendMessage(chatId, response);
+    saveUserToken(chatId, userToken);
+
+
+
+    bot.sendMessage(chatId, `IndiaEarnX API token set successfully.\nYour token: ${userToken}`);
 
 });
 
 
 
-// Listen for any message (not just commands)
+// Listen for messages (URLs & Telegram post links)
 
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
 
-  const chatId = msg.chat.id;
+    const chatId = msg.chat.id;
 
-  const messageText = msg.text;
+    const messageText = msg.text;
 
 
 
-  // If the message starts with "http://" or "https://", assume it's a URL and try to shorten it
+    if (!messageText) return;
 
-  if (messageText && (messageText.startsWith('http://') || messageText.startsWith('https://'))) {
 
-    shortenUrlAndSend(chatId, messageText);
 
-  }
+    // Extract all URLs
+
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+
+    const urls = messageText.match(urlPattern);
+
+
+
+    if (urls && urls.length > 0) {
+
+        await shortenMultipleUrls(chatId, urls);
+
+    } else if (messageText.includes("t.me/")) {
+
+        await handleTelegramPost(chatId, messageText);
+
+    }
 
 });
 
 
 
-// Function to shorten the URL and send the result
+// Function to shorten multiple URLs
 
-async function shortenUrlAndSend(chatId, Url) {
+async function shortenMultipleUrls(chatId, urls) {
 
-  // Retrieve the user's MyBios API token from the database
-
-  const arklinksToken = getUserToken(chatId);
+    const apiToken = getUserToken(chatId);
 
 
 
-  if (!arklinksToken) {
+    if (!apiToken) {
 
-    bot.sendMessage(chatId, 'Please provide your IndiaEarnX API token first. Use the command: /api YOUR_IndiaEarnX_API_TOKEN');
+        bot.sendMessage(chatId, 'Please set your API token first using: /setapi YOUR_API_TOKEN');
 
-    return;
+        return;
 
-  }
-
-
-
-  try {
-
-    const apiUrl = `https://indiaearnx.com/api?api=${arklinksToken}&url=${Url}`;
+    }
 
 
 
-    // Make a request to the MyBios API to shorten the URL
-
-    const response = await axios.get(apiUrl);
-
-    const shortUrl = response.data.shortenedUrl;
+    let shortLinks = [];
 
 
 
+    for (const url of urls) {
+
+        try {
+
+            const response = await axios.get(`https://indiaearnx.com/api?api=${apiToken}&url=${url}`);
+
+            if (response.data.shortenedUrl) {
+
+                shortLinks.push(response.data.shortenedUrl);
+
+            }
+
+        } catch (error) {
+
+            console.error(`Error shortening URL (${url}):`, error);
+
+        }
+
+    }
 
 
-    const responseMessage = `Shortened URL: ${shortUrl}`;
 
-    bot.sendMessage(chatId, responseMessage);
+    if (shortLinks.length > 0) {
 
-  } catch (error) {
+        bot.sendMessage(chatId, `Shortened URLs:\n\n${shortLinks.join("\n")}`);
 
-    console.error('Shorten URL Error:', error);
+    } else {
 
-    bot.sendMessage(chatId, 'An error occurred while shortening the URL. Please check your API token and try again.');
+        bot.sendMessage(chatId, 'Failed to shorten the URLs. Please check your API token.');
 
-  }
-
-}
-
-
-
-// Function to validate the URL format
-
-function isValidUrl(url) {
-
-  const urlPattern = /^(|ftp|http|https):\/\/[^ "]+$/;
-
-  return urlPattern.test(url);
+    }
 
 }
 
 
 
-// Function to save user's MyBios API token to the database (Replit JSON database)
+// Function to handle Telegram post links
+
+async function handleTelegramPost(chatId, messageText) {
+
+    const apiToken = getUserToken(chatId);
+
+
+
+    if (!apiToken) {
+
+        bot.sendMessage(chatId, 'Please set your API token first using: /setapi YOUR_API_TOKEN');
+
+        return;
+
+    }
+
+
+
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+
+    const urls = messageText.match(urlPattern);
+
+
+
+    if (!urls || urls.length === 0) {
+
+        bot.sendMessage(chatId, 'No valid links found in the Telegram post.');
+
+        return;
+
+    }
+
+
+
+    let newMessageText = messageText;
+
+
+
+    for (const url of urls) {
+
+        try {
+
+            const response = await axios.get(`https://indiaearnx.com/api?api=${apiToken}&url=${url}`);
+
+            if (response.data.shortenedUrl) {
+
+                newMessageText = newMessageText.replace(url, response.data.shortenedUrl);
+
+            }
+
+        } catch (error) {
+
+            console.error(`Error shortening URL (${url}):`, error);
+
+        }
+
+    }
+
+
+
+    bot.sendMessage(chatId, `Updated Telegram Post:\n\n${newMessageText}`, { parse_mode: "HTML" });
+
+}
+
+
+
+// Function to save API token
 
 function saveUserToken(chatId, token) {
 
-  const dbData = getDatabaseData();
+    const dbData = getDatabaseData();
 
-  dbData[chatId] = token;
+    dbData[chatId] = token;
 
-  fs.writeFileSync('database.json', JSON.stringify(dbData, null, 2));
+    fs.writeFileSync('database.json', JSON.stringify(dbData, null, 2));
 
 }
 
 
 
-// Function to retrieve user's MyBios API token from the database
+// Function to retrieve API token
 
 function getUserToken(chatId) {
 
-  const dbData = getDatabaseData();
+    const dbData = getDatabaseData();
 
-  return dbData[chatId];
+    return dbData[chatId];
 
 }
 
 
 
-// Function to read the database file and parse the JSON data
+// Function to read database
 
 function getDatabaseData() {
 
-  try {
+    try {
 
-    return JSON.parse(fs.readFileSync('database.json', 'utf8'));
+        return JSON.parse(fs.readFileSync('database.json', 'utf8'));
 
-  } catch (error) {
+    } catch (error) {
 
-    // Return an empty object if the file doesn't exist or couldn't be parsed
+        return {};
 
-    return {};
-
-  }
+    }
 
 }
+
+// --------------- ADD THE NEW CODE HERE ----------------
+
+
+
+// Listen for messages (Text, Photo, Video, or Document with Caption)
+
+bot.on('message', async (msg) => {
+
+    const chatId = msg.chat.id;
+
+
+
+    if (msg.photo || msg.video || msg.document) {
+
+        if (msg.caption) {
+
+            await processPostWithCaption(chatId, msg);
+
+        }
+
+    }
+
+});
+
+
+
+// Function to process media posts with captions
+
+async function processPostWithCaption(chatId, msg) {
+
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+
+    let caption = msg.caption;
+
+    let urls = caption.match(urlPattern);
+
+
+
+    if (urls && urls.length > 0) {
+
+        for (let oldUrl of urls) {
+
+            let newUrl = await shortenUrl(chatId, oldUrl);
+
+            caption = caption.replace(oldUrl, newUrl);
+
+        }
+
+    } else {
+
+        // If no link is found, add a default short link
+
+        let defaultShortUrl = await shortenUrl(chatId, "https://example.com");
+
+        caption += `\n🔗 ${defaultShortUrl}`;
+
+    }
+
+
+
+    // Send the updated post with the new caption
+
+    if (msg.photo) {
+
+        bot.sendPhoto(chatId, msg.photo[msg.photo.length - 1].file_id, { caption: caption, parse_mode: "HTML" });
+
+    } else if (msg.video) {
+
+        bot.sendVideo(chatId, msg.video.file_id, { caption: caption, parse_mode: "HTML" });
+
+    } else if (msg.document) {
+
+        bot.sendDocument(chatId, msg.document.file_id, { caption: caption, parse_mode: "HTML" });
+
+    }
+
+}
+
+
+
+// Function to shorten a URL
+
+async function shortenUrl(chatId, url) {
+
+    const apiToken = getUserToken(chatId);
+
+    if (!apiToken) {
+
+        return "Please set your API token using /setapi";
+
+    }
+
+
+
+    try {
+
+        const apiUrl = `https://indiaearnx.com/api?api=${apiToken}&url=${encodeURIComponent(url)}`;
+
+        const response = await axios.get(apiUrl);
+
+        return response.data.shortenedUrl || url;  // If API fails, return the original URL
+
+    } catch (error) {
+
+        console.error('Shorten URL Error:', error);
+
+        return url; // Return original link if error occurs
+
+    }
+
+}
+
+
+
+// --------------- END OF NEW CODE ----------------
